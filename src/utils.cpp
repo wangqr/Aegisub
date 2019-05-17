@@ -214,9 +214,15 @@ void AddFullScreenButton(wxWindow *) { }
 void SetFloatOnParent(wxWindow *) { }
 
 // OS X implementation in retina_helper.mm
-RetinaHelper::RetinaHelper(wxWindow *) { }
+RetinaHelper::RetinaHelper(wxWindow* w) { window = w; }
 RetinaHelper::~RetinaHelper() { }
-int RetinaHelper::GetScaleFactor() const { return 1; }
+int RetinaHelper::GetScaleFactor() const {
+#ifdef __WXGTK__
+	return int(window->GetContentScaleFactor());
+#else
+	return 1;
+#endif
+}
 
 // OS X implementation in scintilla_ime.mm
 namespace osx { namespace ime {
