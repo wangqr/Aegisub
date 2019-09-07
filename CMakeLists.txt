@@ -7,7 +7,6 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 include_directories("build")
 include_directories("libaegisub/include")
-include_directories("vendor/luajit/include")
 
 add_library(libaegisub STATIC
     libaegisub/common/parser.cpp
@@ -80,176 +79,27 @@ endif(UNIX)
 SET_TARGET_PROPERTIES(libaegisub PROPERTIES PREFIX "")
 target_compile_definitions(libaegisub PRIVATE CMAKE_BUILD)
 
-add_library(luabins STATIC
-    vendor/luabins/src/fwrite.c
-    vendor/luabins/src/load.c
-    vendor/luabins/src/luabins.c
-    vendor/luabins/src/luainternals.c
-    vendor/luabins/src/save.c
-    vendor/luabins/src/savebuffer.c
-    vendor/luabins/src/write.c
-)
+find_package(LuaJIT REQUIRED)
+target_include_directories(libaegisub PRIVATE ${LUAJIT_INCLUDE_DIR})
 
-add_executable(luajit-minilua vendor/luajit/src/host/minilua.c)
-if (NOT MSVC)
-target_link_libraries(luajit-minilua m)
-endif(NOT MSVC)
-if (WIN32)
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        add_custom_command(TARGET luajit-minilua POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_SOURCE_DIR}/vendor/luajit/src/gen
-            COMMAND luajit-minilua ../dynasm/dynasm.lua -LN -D WIN -D JIT -D FFI -D P64 -o gen/buildvm_arch.h vm_x86.dasc
-            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/vendor/luajit/src
-        )
-    else()
-        add_custom_command(TARGET luajit-minilua POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_SOURCE_DIR}/vendor/luajit/src/gen
-            COMMAND luajit-minilua ../dynasm/dynasm.lua -LN -D WIN -D JIT -D FFI -o gen/buildvm_arch.h vm_x86.dasc
-            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/vendor/luajit/src
-        )
-    endif()
-else (WIN32)
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        add_custom_command(TARGET luajit-minilua POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_SOURCE_DIR}/vendor/luajit/src/gen
-            COMMAND luajit-minilua ../dynasm/dynasm.lua -D P64 -D JIT -D FFI -D FPU -D HFABI -D VER= -o gen/buildvm_arch.h vm_x86.dasc
-            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/vendor/luajit/src
-        )
-    else()
-        add_custom_command(TARGET luajit-minilua POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_SOURCE_DIR}/vendor/luajit/src/gen
-            COMMAND luajit-minilua ../dynasm/dynasm.lua -D JIT -D FFI -D FPU -D HFABI -D VER= -o gen/buildvm_arch.h vm_x86.dasc
-            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/vendor/luajit/src
-        )
-    endif()
-endif (WIN32)
-add_custom_command(TARGET luajit-minilua POST_BUILD
+add_custom_command(
+    OUTPUT ${PROJECT_SOURCE_DIR}/src/libresrc/default_config.cpp ${PROJECT_SOURCE_DIR}/src/libresrc/default_config.h
     COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/src/libresrc/default_config_win.json ${PROJECT_SOURCE_DIR}/src/libresrc/default_config_platform.json
-    COMMAND luajit-minilua ../../tools/respack.lua manifest.respack default_config.cpp default_config.h
+    COMMAND ${LUAJIT_EXECUTABLE} ../../tools/respack.lua manifest.respack default_config.cpp default_config.h
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/src/libresrc
-    BYPRODUCTS ${PROJECT_SOURCE_DIR}/src/libresrc/default_config.cpp ${PROJECT_SOURCE_DIR}/src/libresrc/default_config.h
 )
-add_custom_command(TARGET luajit-minilua POST_BUILD
-    COMMAND luajit-minilua ../../tools/respack.lua manifest.respack ../libresrc/bitmap.cpp ../libresrc/bitmap.h
+
+add_custom_command(
+    OUTPUT ${PROJECT_SOURCE_DIR}/src/libresrc/bitmap.cpp ${PROJECT_SOURCE_DIR}/src/libresrc/bitmap.h
+    COMMAND ${LUAJIT_EXECUTABLE} ../../tools/respack.lua manifest.respack ../libresrc/bitmap.cpp ../libresrc/bitmap.h
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/src/bitmaps
-    BYPRODUCTS ${PROJECT_SOURCE_DIR}/src/libresrc/bitmap.cpp ${PROJECT_SOURCE_DIR}/src/libresrc/bitmap.h
 )
-
-add_executable(luajit-buildvm
-    vendor/luajit/src/host/buildvm.c
-    vendor/luajit/src/host/buildvm_asm.c
-    vendor/luajit/src/host/buildvm_peobj.c
-    vendor/luajit/src/host/buildvm_lib.c
-    vendor/luajit/src/host/buildvm_fold.c
-)
-target_include_directories(luajit-buildvm PRIVATE vendor/luajit/src vendor/luajit/src/gen)
-add_dependencies(luajit-buildvm luajit-minilua)
-if(UNIX)
-    add_custom_command(TARGET luajit-buildvm POST_BUILD
-        COMMAND luajit-buildvm -m elfasm -o lj_vm.s
-        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/vendor/luajit/src
-        BYPRODUCTS ${PROJECT_SOURCE_DIR}/vendor/luajit/src/lj_vm.s
-    )
-    set_property(SOURCE vendor/luajit/src/lj_vm.s PROPERTY LANGUAGE C)
-elseif(MSVC)
-    add_custom_command(TARGET luajit-buildvm POST_BUILD
-        COMMAND luajit-buildvm -m peobj -o lj_vm.obj
-        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/vendor/luajit/src
-        BYPRODUCTS ${PROJECT_SOURCE_DIR}/vendor/luajit/src/lj_vm.obj
-    )
-endif(UNIX)
-add_custom_command(TARGET luajit-buildvm POST_BUILD
-    COMMAND luajit-buildvm -m ffdef -o gen/lj_ffdef.h lib_base.c lib_math.c lib_bit.c lib_string.c lib_table.c lib_io.c lib_os.c lib_package.c lib_debug.c lib_jit.c lib_ffi.c
-    COMMAND luajit-buildvm -m bcdef -o gen/lj_bcdef.h lib_base.c lib_math.c lib_bit.c lib_string.c lib_table.c lib_io.c lib_os.c lib_package.c lib_debug.c lib_jit.c lib_ffi.c
-    COMMAND luajit-buildvm -m folddef -o gen/lj_folddef.h lj_opt_fold.c
-    COMMAND luajit-buildvm -m recdef -o gen/lj_recdef.h lib_base.c lib_math.c lib_bit.c lib_string.c lib_table.c lib_io.c lib_os.c lib_package.c lib_debug.c lib_jit.c lib_ffi.c
-    COMMAND luajit-buildvm -m libdef -o gen/lj_libdef.h lib_base.c lib_math.c lib_bit.c lib_string.c lib_table.c lib_io.c lib_os.c lib_package.c lib_debug.c lib_jit.c lib_ffi.c
-    COMMAND luajit-buildvm -m vmdef -o jit/vmdef.lua lib_base.c lib_math.c lib_bit.c lib_string.c lib_table.c lib_io.c lib_os.c lib_package.c lib_debug.c lib_jit.c lib_ffi.c
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/vendor/luajit/src
-)
-target_compile_definitions(luajit-buildvm PRIVATE LUAJIT_ENABLE_LUA52COMPAT)
-
-
-add_library(luajit STATIC
-    vendor/luajit/src/lj_gc.c
-    vendor/luajit/src/lj_err.c
-    vendor/luajit/src/lj_char.c
-    vendor/luajit/src/lj_bc.c
-    vendor/luajit/src/lj_obj.c
-    vendor/luajit/src/lj_str.c
-    vendor/luajit/src/lj_tab.c
-    vendor/luajit/src/lj_func.c
-    vendor/luajit/src/lj_udata.c
-    vendor/luajit/src/lj_meta.c
-    vendor/luajit/src/lj_debug.c
-    vendor/luajit/src/lj_state.c
-    vendor/luajit/src/lj_dispatch.c
-    vendor/luajit/src/lj_vmevent.c
-    vendor/luajit/src/lj_vmmath.c
-    vendor/luajit/src/lj_strscan.c
-    vendor/luajit/src/lj_api.c
-    vendor/luajit/src/lj_lex.c
-    vendor/luajit/src/lj_parse.c
-    vendor/luajit/src/lj_bcread.c
-    vendor/luajit/src/lj_bcwrite.c
-    vendor/luajit/src/lj_load.c
-    vendor/luajit/src/lj_ir.c
-    vendor/luajit/src/lj_opt_mem.c
-    vendor/luajit/src/lj_opt_fold.c
-    vendor/luajit/src/lj_opt_narrow.c
-    vendor/luajit/src/lj_opt_dce.c
-    vendor/luajit/src/lj_opt_loop.c
-    vendor/luajit/src/lj_opt_split.c
-    vendor/luajit/src/lj_opt_sink.c
-    vendor/luajit/src/lj_mcode.c
-    vendor/luajit/src/lj_snap.c
-    vendor/luajit/src/lj_record.c
-    vendor/luajit/src/lj_crecord.c
-    vendor/luajit/src/lj_ffrecord.c
-    vendor/luajit/src/lj_asm.c
-    vendor/luajit/src/lj_trace.c
-    vendor/luajit/src/lj_gdbjit.c
-    vendor/luajit/src/lj_ctype.c
-    vendor/luajit/src/lj_cdata.c
-    vendor/luajit/src/lj_cconv.c
-    vendor/luajit/src/lj_ccall.c
-    vendor/luajit/src/lj_ccallback.c
-    vendor/luajit/src/lj_carith.c
-    vendor/luajit/src/lj_clib.c
-    vendor/luajit/src/lj_cparse.c
-    vendor/luajit/src/lj_lib.c
-    vendor/luajit/src/lj_alloc.c
-    vendor/luajit/src/lib_aux.c
-    vendor/luajit/src/lib_base.c
-    vendor/luajit/src/lib_math.c
-    vendor/luajit/src/lib_bit.c
-    vendor/luajit/src/lib_string.c
-    vendor/luajit/src/lib_table.c
-    vendor/luajit/src/lib_io.c
-    vendor/luajit/src/lib_os.c
-    vendor/luajit/src/lib_package.c
-    vendor/luajit/src/lib_debug.c
-    vendor/luajit/src/lib_jit.c
-    vendor/luajit/src/lib_ffi.c
-    vendor/luajit/src/lib_init.c
-)
-if(MSVC)
-    target_sources(luajit PRIVATE vendor/luajit/src/lj_vm.obj)
-else(MSVC)
-    target_sources(luajit PRIVATE vendor/luajit/src/lj_vm.s)
-    set_property(SOURCE vendor/luajit/src/lj_vm.s PROPERTY LANGUAGE C)
-    target_link_libraries(luajit dl)
-endif(MSVC)
-target_include_directories(luajit PRIVATE vendor/luajit/src/gen)
-add_dependencies(luajit luajit-buildvm)
-target_compile_definitions(luajit PRIVATE LUAJIT_ENABLE_LUA52COMPAT)
 
 add_library(resrc STATIC
     src/libresrc/bitmap.cpp
     src/libresrc/default_config.cpp
     src/libresrc/libresrc.cpp
 )
-add_dependencies(resrc luajit-minilua)
 
 add_library(csri STATIC
     vendor/csri/lib/list.c
@@ -428,7 +278,8 @@ add_executable(Aegisub WIN32
     src/video_slider.cpp
     src/visual_feature.cpp
 )
-target_link_libraries(Aegisub ${CMAKE_DL_LIBS} libaegisub luabins luajit resrc csri)
+target_include_directories(Aegisub PRIVATE ${LUAJIT_INCLUDE_DIR})
+target_link_libraries(Aegisub ${CMAKE_DL_LIBS} libaegisub ${LUAJIT_LIBRARIES} resrc csri)
 target_compile_definitions(Aegisub PRIVATE CMAKE_BUILD)
 
 if (MSVC)
@@ -453,6 +304,7 @@ if (MSVC)
 else(MSVC)
     target_sources(Aegisub PRIVATE src/crash_writer.cpp)
     target_compile_options(Aegisub PRIVATE -include "${PROJECT_SOURCE_DIR}/src/agi_pre.h")
+    target_link_libraries(Aegisub dl)
 endif(MSVC)
 
 if (WIN32)

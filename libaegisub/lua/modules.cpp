@@ -19,7 +19,7 @@
 #include "libaegisub/lua/ffi.h"
 #include "libaegisub/lua/utils.h"
 
-extern "C" int luaopen_luabins(lua_State *L);
+// extern "C" int luaopen_luabins(lua_State *L);
 extern "C" int luaopen_re_impl(lua_State *L);
 extern "C" int luaopen_unicode_impl(lua_State *L);
 extern "C" int luaopen_lfs_impl(lua_State *L);
@@ -38,7 +38,7 @@ void preload_modules(lua_State *L) {
 	set_field(L, "aegisub.__unicode_impl", luaopen_unicode_impl);
 	set_field(L, "aegisub.__lfs_impl", luaopen_lfs_impl);
 	set_field(L, "lpeg", luaopen_lpeg);
-	set_field(L, "luabins", luaopen_luabins);
+	// set_field(L, "luabins", luaopen_luabins);
 
 	lua_pop(L, 2);
 
