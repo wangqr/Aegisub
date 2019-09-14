@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
 	agi::log::log = new agi::log::LogSink;
 
 	// Init lua state
-	lua_State *L = lua_open();
+	lua_State *L = luaL_newstate();
 	if (!L) {
 		fprintf(stderr, "Failed to create Lua state\n");
 		return 1;

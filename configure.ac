@@ -431,7 +431,7 @@ AS_IF([test x$with_system_luajit != xno], [
 ])
 
 AS_IF([test $with_system_luajit = no],
-      [AC_SUBST([LUAJIT_CFLAGS], ['-I$(TOP)vendor/luajit/include'])
+      [AC_SUBST([LUAJIT_CFLAGS], ['-I$(TOP)vendor/luajit/src'])
        AC_SUBST([LUAJIT_LIBS], ['$(TOP)vendor/luajit/src/libluajit.a'])])
 
 # We also need a Lua binary to run part of the build system

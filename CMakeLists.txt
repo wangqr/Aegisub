@@ -7,7 +7,7 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 include_directories("build")
 include_directories("libaegisub/include")
-include_directories("vendor/luajit/include")
+include_directories("vendor/luajit/src")
 
 add_library(libaegisub STATIC
     libaegisub/common/parser.cpp
@@ -202,11 +202,23 @@ add_custom_command(
 )
 
 add_library(luajit STATIC
+    vendor/luajit/src/lib_base.c
+    vendor/luajit/src/lib_math.c
+    vendor/luajit/src/lib_bit.c
+    vendor/luajit/src/lib_string.c
+    vendor/luajit/src/lib_table.c
+    vendor/luajit/src/lib_io.c
+    vendor/luajit/src/lib_os.c
+    vendor/luajit/src/lib_package.c
+    vendor/luajit/src/lib_debug.c
+    vendor/luajit/src/lib_jit.c
+    vendor/luajit/src/lib_ffi.c
     vendor/luajit/src/lj_gc.c
     vendor/luajit/src/lj_err.c
     vendor/luajit/src/lj_char.c
     vendor/luajit/src/lj_bc.c
     vendor/luajit/src/lj_obj.c
+    vendor/luajit/src/lj_buf.c
     vendor/luajit/src/lj_str.c
     vendor/luajit/src/lj_tab.c
     vendor/luajit/src/lj_func.c
@@ -218,7 +230,10 @@ add_library(luajit STATIC
     vendor/luajit/src/lj_vmevent.c
     vendor/luajit/src/lj_vmmath.c
     vendor/luajit/src/lj_strscan.c
+    vendor/luajit/src/lj_strfmt.c
+    vendor/luajit/src/lj_strfmt_num.c
     vendor/luajit/src/lj_api.c
+    vendor/luajit/src/lj_profile.c
     vendor/luajit/src/lj_lex.c
     vendor/luajit/src/lj_parse.c
     vendor/luajit/src/lj_bcread.c
@@ -251,17 +266,6 @@ add_library(luajit STATIC
     vendor/luajit/src/lj_lib.c
     vendor/luajit/src/lj_alloc.c
     vendor/luajit/src/lib_aux.c
-    vendor/luajit/src/lib_base.c
-    vendor/luajit/src/lib_math.c
-    vendor/luajit/src/lib_bit.c
-    vendor/luajit/src/lib_string.c
-    vendor/luajit/src/lib_table.c
-    vendor/luajit/src/lib_io.c
-    vendor/luajit/src/lib_os.c
-    vendor/luajit/src/lib_package.c
-    vendor/luajit/src/lib_debug.c
-    vendor/luajit/src/lib_jit.c
-    vendor/luajit/src/lib_ffi.c
     vendor/luajit/src/lib_init.c
 
     vendor/luajit/src/gen/lj_ffdef.h
