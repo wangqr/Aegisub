@@ -5,6 +5,12 @@ language: cpp
 git:
   submodules: false
 
+jobs:
+  include:
+    - os: osx
+      osx_image: xcode11.3
+      env: BUILD_SUIT=autotools
+
 addons:
   apt:
     sources:
@@ -34,31 +40,21 @@ addons:
     - gcc-9
     - g++-9
 
-env:
-- ''
-- BUILD_SUIT=autotools
-- CC=gcc-9 CXX=g++-9
-- BUILD_SUIT=autotools CC=gcc-9 CXX=g++-9
-
 install:
-- sudo luarocks install busted > /dev/null
-- sudo luarocks install moonscript > /dev/null
-- sudo luarocks install uuid > /dev/null
-# Remove the CMake provided by travis
-- sudo rm -rf /usr/local/cmake*
-- if [ "$BUILD_SUIT" = "autotools" ]; then
-    sudo pip install -U cpp-coveralls;
-    git submodule --quiet init;
-    git submodule --quiet update vendor/googletest;
-  else
-    pushd /usr/src/googletest;
-    sudo cmake .;
-    sudo make install -j2;
-    popd;
-  fi
+- ./.travis/install.sh
 
 script:
-- if [ "$BUILD_SUIT" = "autotools" ]; then
+- if [ $TRAVIS_OS_NAME = 'osx' ]; then
+    export PATH="/usr/local/opt/gettext/bin:/usr/local/opt/icu4c/sbin:/usr/local/opt/icu4c/bin:$PATH";
+    export CPPFLAGS="-I/usr/local/opt/gettext/include -I/usr/local/opt/icu4c/include";
+    export LDFLAGS="-L/usr/local/opt/gettext/lib -L/usr/local/opt/icu4c/lib";
+    export ACLOCAL_PATH="/usr/local/opt/gettext/share/aclocal"
+    export PKG_CONFIG_PATH="/usr/local/opt/icu4c/lib/pkgconfig";
+    ./autogen.sh;
+    ./configure --enable-debug || cat config.log;
+    make -j2 || travis_terminate 1;
+    make test || travis_terminate 1;
+  elif [ "$BUILD_SUIT" = "autotools" ]; then
     export CPPFLAGS="-fprofile-arcs -ftest-coverage";
     export LIBS="-lgcov";
     ./autogen.sh;

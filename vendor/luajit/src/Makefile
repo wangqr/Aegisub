@@ -305,7 +305,7 @@ ifeq (Darwin,$(TARGET_SYS))
   TARGET_DYNXLDOPTS=
   TARGET_XSHLDFLAGS+= -install_name $(TARGET_DYLIBPATH) -compatibility_version $(MAJVER).$(MINVER) -current_version $(MAJVER).$(MINVER).$(RELVER)
   ifeq (x64,$(TARGET_LJARCH))
-    TARGET_XLDFLAGS+= -pagezero_size 10000 -image_base 100000000
+    XCFLAGS+= -DLUAJIT_ENABLE_GC64
     TARGET_XSHLDFLAGS+= -image_base 7fff04c4a000
   endif
 else
