@@ -86,7 +86,7 @@ script:
     ./configure --enable-debug || cat config.log;
     make -j2 || travis_terminate 1;
     make test || travis_terminate 1;
-    coveralls --exclude vendor --exclude src --exclude build --exclude tools --exclude libaegisub/windows > /dev/null;
+    coveralls --exclude vendor --exclude src --exclude build --exclude tools --exclude libaegisub/windows;
   else
     mkdir build-dir;
     cd build-dir;
