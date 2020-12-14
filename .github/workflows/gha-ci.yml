@@ -1,0 +1,112 @@
+name: GitHubActions CI tests
+
+on:
+  push:
+    branches: [master, dev, ci]
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, macos-10.15]
+        build_suite: [autoconf]
+        with_coveralls: [no]
+        include:
+          # Do one build with cmake instead of autoconf
+          - os: ubuntu-20.04
+            build_suite: cmake
+            with_coveralls: no
+          # And run one build with gcov and coveralls
+          # (Does currently not work, but neither did it in travis)
+          #- os: ubuntu-20.04
+          #  build_suite: autoconf
+          #  with_coveralls: yes
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v2
+
+      - name: install deps
+        run: |
+          if (echo "${{ matrix.os }}" | grep -qE '^macos-') ; then
+            #brew update
+            # freetype, gettext, icuc4 and autoconf are preinstalled
+            # and `brew install` fails if a non-uptodate version is already installed
+            #brew upgrade autoconf freetype gettext icu4c
+            brew install automake boost ffmpeg ffms2 fftw fribidi libass \
+                         lua luarocks m4 wxmac hunspell uchardet
+          else
+            #sudo apt-get update && sudo apt-get upgrade -y
+            sudo apt-get install -y ${{ matrix.build_suite }} \
+              autopoint build-essential g++ gcc gettext libasound2-dev \
+              libass-dev  libffms2-dev libfftw3-dev libfontconfig1-dev   \
+              libfribidi-dev libgtest-dev libhunspell-dev libicu-dev libopenal-dev       \
+              libpulse-dev libuchardet-dev libwxgtk3.0-gtk3-dev luarocks portaudio19-dev \
+              python3-pip python3-setuptools \
+              pkg-config libgl1-mesa-dev libgl-dev libfreetype6-dev libfontconfig-dev \
+              intltool libboost-all-dev
+            if [ "x${{ matrix.with_coveralls }}" = "xyes" ] ; then
+              sudo pip3 install -U cpp-coveralls
+            fi
+          fi
+
+          sudo luarocks install busted     > /dev/null
+          sudo luarocks install moonscript > /dev/null
+          sudo luarocks install uuid       > /dev/null
+
+          git submodule --quiet init
+          git submodule --quiet update vendor/googletest
+
+      - name: set up MacOS env
+        run: |
+          if (echo "${{ matrix.os }}" | grep -qE '^macos-') ; then
+            # Changes are only available in the following steps, not the current one
+            echo 'CPPFLAGS=-I/usr/local/opt/gettext/include -I/usr/local/opt/icu4c/include' >> $GITHUB_ENV
+            echo 'LDFLAGS=-L/usr/local/opt/gettext/lib -L/usr/local/opt/icu4c/lib' >> $GITHUB_ENV
+            echo 'PKG_CONFIG_PATH=/usr/local/opt/icu4c/lib/pkgconfig' >> $GITHUB_ENV
+            echo 'ACLOCAL_PATH=/usr/local/opt/gettext/share/aclocal'  >> $GITHUB_ENV
+            # Prepend to $PATH
+            echo "/usr/local/opt/icu4c/bin"   >> $GITHUB_PATH
+            echo "/usr/local/opt/icu4c/sbin"  >> $GITHUB_PATH
+            echo "/usr/local/opt/gettext/bin" >> $GITHUB_PATH
+          fi
+
+      - name: set up coverage env
+        run: |
+          if [ "x${{ matrix.with_coveralls }}" = "xyes" ] ; then
+            echo "CPPFLAGS=--coverage $CPPFLAGS" >> $GITHUB_ENV
+            echo "LIBS=-lgcov $LIBS" >> $GITHUB_ENV
+          fi
+
+      - name: configure
+        run: |
+          if [ "x${{ matrix.build_suite }}" = "xautoconf" ] ; then
+            ./autogen.sh
+            conf_success=0
+            ./configure --enable-debug || conf_success=1
+            [ "$conf_success" -eq 0 ] || (cat config.log; exit 1)
+          else
+            mkdir build-dir
+            cd build-dir
+            cmake -DCMAKE_CXX_FLAGS='-Wall -Wextra -Wno-unused-parameter -pedantic' -DCMAKE_C_FLAGS='-Wall -Wextra -Wno-unused-parameter' -DWITH_STARTUPLOG=ON -DWITH_TEST=ON  ..
+          fi
+
+      - name: build
+        run: |
+          [ "x${{ matrix.build_suite }}" = "xautoconf" ] || cd build-dir
+          make -j 2
+
+      - name: run tests
+        run: |
+          [ "x${{ matrix.build_suite }}" = "xautoconf" ] || cd build-dir
+          make test
+
+      - name: coveralls
+        run: |
+          if [ "x${{ matrix.with_coveralls }}" = "xyes" ] ; then
+            coveralls --exclude vendor --exclude src --exclude build \
+                      --exclude tools --exclude libaegisub/windows \
+                      > /dev/null
+          fi
