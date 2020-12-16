@@ -37,6 +37,9 @@ jobs:
             #brew upgrade autoconf freetype gettext icu4c
             brew install automake boost ffmpeg ffms2 fftw fribidi libass \
                          lua luarocks m4 wxmac hunspell uchardet
+            # Use bundled googletest
+            git submodule --quiet init
+            git submodule --quiet update vendor/googletest
           else
             #sudo apt-get update && sudo apt-get upgrade -y
             sudo apt-get install -y ${{ matrix.build_suite }} \
@@ -46,18 +49,21 @@ jobs:
               libpulse-dev libuchardet-dev libwxgtk3.0-gtk3-dev luarocks portaudio19-dev \
               python3-pip python3-setuptools \
               pkg-config libgl1-mesa-dev libgl-dev libfreetype6-dev libfontconfig-dev \
-              intltool libboost-all-dev
+              intltool libboost-all-dev googletest
             if [ "x${{ matrix.with_coveralls }}" = "xyes" ] ; then
               sudo pip3 install -U cpp-coveralls
+            fi
+            if [ "x${{ matrix.build_suite }}" = "xautoconf" ] ; then
+              # Use system provided googletest via source
+              # (CMake will precompile it and use the binaries)
+              rm -fr vendor/googletest
+              cp -R /usr/src/googletest/googletest vendor/
             fi
           fi
 
           sudo luarocks install busted     > /dev/null
           sudo luarocks install moonscript > /dev/null
           sudo luarocks install uuid       > /dev/null
-
-          git submodule --quiet init
-          git submodule --quiet update vendor/googletest
 
       - name: set up MacOS env
         run: |
@@ -91,6 +97,10 @@ jobs:
             mkdir build-dir
             cd build-dir
             cmake -DCMAKE_CXX_FLAGS='-Wall -Wextra -Wno-unused-parameter -pedantic' -DCMAKE_C_FLAGS='-Wall -Wextra -Wno-unused-parameter' -DWITH_STARTUPLOG=ON -DWITH_TEST=ON  ..
+            # Precompile system googletest (CMake only)
+            cd /usr/src/googletest
+            sudo cmake .
+            sudo make install -j2
           fi
 
       - name: build
