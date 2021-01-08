@@ -116,7 +116,10 @@ PKG_PROG_PKG_CONFIG([pkgconfig_required_version])
 # Developers only
 #################
 AC_MSG_CHECKING([for version])
-. $srcdir/build/version.sh "$srcdir"
+old=$@ # Store the old arguments
+set -- "$srcdir" # Allows version.sh to see $srcdir as argument.
+. $srcdir/build/version.sh
+set -- $old # Put the old arguments back.
 AC_MSG_RESULT([$BUILD_GIT_VERSION_STRING $VERSION_SOURCE])
 
 AC_MSG_CHECKING([for build date])
