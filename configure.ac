@@ -233,6 +233,7 @@ AC_DEFINE(BOOST_MULTI_INDEX_DISABLE_SERIALIZATION, 1,
 
 PKG_CHECK_MODULES(ICU_UC, icu-uc >= icu_required_version)
 PKG_CHECK_MODULES(ICU_I18N, icu-i18n >= icu_required_version)
+BOOST_CPPFLAGS="$BOOST_CPPFLAGS $ICU_UC_CFLAGS"
 
 ########
 ## boost
