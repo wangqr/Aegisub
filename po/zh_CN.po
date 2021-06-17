@@ -1124,7 +1124,7 @@ msgstr ""
 #: ../src/command/edit.cpp:1128 ../src/command/edit.cpp:1129
 #: ../src/subs_edit_ctrl.cpp:415
 msgid "Split at cursor (preserve times)"
-msgstr "在光标处分割 (保留原计时)"
+msgstr "在光标处分割（保留原计时）"
 
 #: ../src/command/edit.cpp:1130
 msgid ""
