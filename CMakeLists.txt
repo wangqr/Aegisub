@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 cmake_policy(SET CMP0074 NEW)
+include(CheckIncludeFiles)
 
 project(Aegisub)
 
@@ -12,6 +13,7 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+## Build bundled LuaJIT with aegisub specific patches
 add_executable(luajit-minilua vendor/luajit/src/host/minilua.c)
 if(NOT WIN32)
     target_link_libraries(luajit-minilua m)
@@ -32,6 +34,13 @@ if(WIN32)
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/vendor/luajit/src
         )
     endif()
+elseif(APPLE)
+    add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vendor/luajit/src/gen/buildvm_arch.h"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/vendor/luajit/src/gen"
+        COMMAND luajit-minilua ../dynasm/dynasm.lua -D P64 -D JIT -D FFI -D FPU -D HFABI -D VER= -o "${CMAKE_CURRENT_BINARY_DIR}/vendor/luajit/src/gen/buildvm_arch.h" vm_x64.dasc
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/vendor/luajit/src
+    )
 else()
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         add_custom_command(
@@ -61,7 +70,12 @@ add_executable(luajit-buildvm
 )
 target_compile_definitions(luajit-buildvm PRIVATE LUAJIT_ENABLE_LUA52COMPAT)
 target_include_directories(luajit-buildvm PRIVATE vendor/luajit/src "${CMAKE_CURRENT_BINARY_DIR}/vendor/luajit/src/gen")
-if(UNIX)
+if(APPLE)
+    add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vendor/luajit/src/lj_vm.s"
+        COMMAND luajit-buildvm -m machasm -o "${CMAKE_CURRENT_BINARY_DIR}/vendor/luajit/src/lj_vm.s"
+    )
+elseif(UNIX)
     add_custom_command(
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vendor/luajit/src/lj_vm.s"
         COMMAND luajit-buildvm -m elfasm -o "${CMAKE_CURRENT_BINARY_DIR}/vendor/luajit/src/lj_vm.s"
@@ -186,9 +200,14 @@ else()
     set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/vendor/luajit/src/lj_vm.s" PROPERTY LANGUAGE C)
     target_link_libraries(luajit ${CMAKE_DL_LIBS})
 endif()
+if(APPLE)
+    target_compile_definitions(luajit-buildvm PRIVATE LUAJIT_ENABLE_GC64)
+    target_compile_definitions(luajit PRIVATE LUAJIT_ENABLE_GC64)
+endif()
 
 add_subdirectory(vendor/luabins)
 
+## libaegisub
 add_library(libaegisub STATIC
     libaegisub/common/parser.cpp
     libaegisub/ass/dialogue_parser.cpp
@@ -238,6 +257,7 @@ add_library(libaegisub STATIC
     libaegisub/common/ycbcr_conv.cpp
     libaegisub/common/dispatch.cpp
 )
+target_compile_features(libaegisub PUBLIC cxx_std_11)
 if(UNIX)
     target_sources(libaegisub PRIVATE
         libaegisub/unix/access.cpp
@@ -262,10 +282,21 @@ elseif(WIN32)
         libaegisub/windows/util_win.cpp
     )
 endif()
+if(APPLE)
+    target_sources(libaegisub PRIVATE
+        libaegisub/osx/dispatch.mm
+        libaegisub/osx/spellchecker.mm
+        libaegisub/osx/util.mm)
+endif()
 set_target_properties(libaegisub PROPERTIES PREFIX "")
 target_compile_definitions(libaegisub PRIVATE CMAKE_BUILD)
 target_include_directories(libaegisub PUBLIC "libaegisub/include")
-target_precompile_headers(libaegisub PRIVATE "libaegisub/lagi_pre.h")
+if(APPLE)
+    # CMake on macOS currently does not support pch with objc, so use the old way
+    target_compile_options(libaegisub PRIVATE -include "${PROJECT_SOURCE_DIR}/libaegisub/lagi_pre.h")
+else()
+    target_precompile_headers(libaegisub PRIVATE "libaegisub/lagi_pre.h")
+endif()
 target_link_libraries(libaegisub PRIVATE luajit luabins)
 
 add_custom_command(
@@ -283,6 +314,7 @@ add_custom_command(
 
 add_subdirectory("vendor/csri")
 
+## Aegisub
 add_executable(Aegisub WIN32
     "${CMAKE_CURRENT_BINARY_DIR}/src/libresrc/bitmap.h"
     "${CMAKE_CURRENT_BINARY_DIR}/src/libresrc/default_config.h"
@@ -454,7 +486,12 @@ add_executable(Aegisub WIN32
 target_link_libraries(Aegisub PRIVATE ${CMAKE_DL_LIBS} libaegisub luajit)
 target_compile_definitions(Aegisub PRIVATE CMAKE_BUILD)
 target_include_directories(Aegisub PRIVATE "src/libresrc" "${CMAKE_CURRENT_BINARY_DIR}/src/libresrc")
-target_precompile_headers(Aegisub PRIVATE "src/agi_pre.h")
+if(APPLE)
+    # CMake on macOS currently does not support pch with objc, so use the old way
+    target_compile_options(Aegisub PRIVATE -include "${PROJECT_SOURCE_DIR}/src/agi_pre.h")
+else()
+    target_precompile_headers(Aegisub PRIVATE "src/agi_pre.h")
+endif()
 
 if(WIN32)
     if(NOT EXISTS "${PROJECT_SOURCE_DIR}/build/git_version.h")
@@ -490,12 +527,17 @@ if(MSVC)
     #target_sources(Aegisub PRIVATE src/res/res.rc src/res/strings.rc src/crash_writer_minidump.cpp)
     target_sources(Aegisub PRIVATE src/res/res.rc src/res/strings.rc src/crash_writer.cpp src/dpi_aware.manifest)
     set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Aegisub)
+elseif(APPLE)
+    target_include_directories(Aegisub PRIVATE src)  # For src/retina_helper.h
+    target_sources(Aegisub PRIVATE src/crash_writer.cpp src/osx/osx_utils.mm src/osx/retina_helper.mm)
 else()
     target_sources(Aegisub PRIVATE src/crash_writer.cpp)
 endif()
 
 if(WIN32)
     target_sources(Aegisub PRIVATE src/font_file_lister_gdi.cpp)
+elseif(APPLE)
+    target_sources(Aegisub PRIVATE src/font_file_lister_coretext.mm)
 else()
     find_package(Fontconfig REQUIRED)
     target_link_libraries(Aegisub PRIVATE "Fontconfig::Fontconfig")
@@ -513,6 +555,10 @@ target_link_libraries(Aegisub PRIVATE "Boost::headers" "Boost::container" "Boost
 
 find_package(OpenGL REQUIRED)
 target_link_libraries(Aegisub PRIVATE "OpenGL::GL")
+check_include_files(OpenGL/gl.h HAVE_OPENGL_GL_H)
+if(HAVE_OPENGL_GL_H)
+    target_compile_definitions(Aegisub PRIVATE "HAVE_OPENGL_GL_H")
+endif()
 
 find_package(Iconv REQUIRED)
 target_link_libraries(libaegisub PRIVATE "Iconv::Iconv")

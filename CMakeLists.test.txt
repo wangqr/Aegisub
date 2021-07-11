@@ -2,7 +2,7 @@ if(UNIX)
     add_executable(aegisub-lua EXCLUDE_FROM_ALL
         automation/tests/aegisub.cpp
     )
-    target_link_libraries(aegisub-lua PRIVATE libaegisub luabins luajit "Boost::locale")
+    target_link_libraries(aegisub-lua PRIVATE libaegisub luabins luajit "Boost::locale" "ICU::in")
     add_custom_target(test-automation
         COMMAND sh -c "$(luarocks path); ${PROJECT_BINARY_DIR}/aegisub-lua tests/busted.lua -p moon tests/modules"
         VERBATIM

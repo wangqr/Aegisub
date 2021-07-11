@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/wangqr/Aegisub.svg?branch=dev)](https://travis-ci.com/wangqr/Aegisub)
+[![Build Status](https://github.com/wangqr/Aegisub/actions/workflows/gha-ci.yml/badge.svg)](https://github.com/wangqr/Aegisub/actions/workflows/gha-ci.yml)
 
 # Aegisub
 
@@ -50,7 +50,7 @@ cd Aegisub
 make
 ```
 
-### CMake (for Windows and linux)
+### CMake (for Windows, linux and macOS)
 
 This fork also provides CMake build. The CMake project will only build Aegisub itself, without the translation.
 

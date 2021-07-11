@@ -10,18 +10,14 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-20.04, macos-10.15]
-        build_suite: [autoconf]
+        build_suite: [autoconf, cmake]
         with_coveralls: [no]
-        include:
-          # Do one build with cmake instead of autoconf
-          - os: ubuntu-20.04
-            build_suite: cmake
-            with_coveralls: no
-          # And run one build with gcov and coveralls
-          # (Does currently not work, but neither did it in travis)
-          #- os: ubuntu-20.04
-          #  build_suite: autoconf
-          #  with_coveralls: yes
+        # Run one build with gcov and coveralls
+        # (Does currently not work, but neither did it in travis)
+        #include:
+        #  - os: ubuntu-20.04
+        #    build_suite: autoconf
+        #    with_coveralls: yes
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -89,13 +85,14 @@ jobs:
         run: |
           if [ "x${{ matrix.build_suite }}" = "xautoconf" ] ; then
             ./autogen.sh
-            conf_success=0
-            ./configure --enable-debug || conf_success=1
-            [ "$conf_success" -eq 0 ] || (cat config.log; exit 1)
+            ./configure --enable-debug || (cat config.log; exit 1)
           else
             mkdir build-dir
             cd build-dir
-            cmake -DCMAKE_CXX_FLAGS='-Wall -Wextra -Wno-unused-parameter -pedantic' -DCMAKE_C_FLAGS='-Wall -Wextra -Wno-unused-parameter' -DWITH_STARTUPLOG=ON -DWITH_TEST=ON  ..
+            if (echo "${{ matrix.os }}" | grep -qE '^macos-') ; then
+              CMAKE_PLATFORM_OPTIONS='-DICU_INCLUDE_DIR=/usr/local/opt/icu4c/include -DICU_UC_LIBRARY_RELEASE=/usr/local/opt/icu4c/lib/libicuuc.dylib -DICU_IN_LIBRARY_RELEASE=/usr/local/opt/icu4c/lib/libicui18n.dylib'
+            fi
+            cmake -DCMAKE_CXX_FLAGS='-Wall -Wextra -Wno-unused-parameter -pedantic' -DCMAKE_C_FLAGS='-Wall -Wextra -Wno-unused-parameter' -DWITH_STARTUPLOG=ON -DWITH_TEST=ON $CMAKE_PLATFORM_OPTIONS .. || (cat CMakeFiles/CMakeOutput.log CMakeFiles/CMakeError.log; exit 1)
           fi
 
       - name: build
@@ -116,13 +113,13 @@ jobs:
                     > /dev/null
 
       - name: package
-        if: ${{ startsWith( matrix.os, 'macos-' ) }}
+        if: ${{ startsWith( matrix.os, 'macos-' ) && matrix.build_suite == 'autoconf' }}
         run: |
           make osx-dmg
           mv *.dmg aegisub-macos-GHA.dmg
 
       - name: upload artifact
-        if: ${{ startsWith( matrix.os, 'macos-' ) }}
+        if: ${{ startsWith( matrix.os, 'macos-' ) && matrix.build_suite == 'autoconf' }}
         uses: actions/upload-artifact@v2
         with:
           name: aegisub-macos-GHA
